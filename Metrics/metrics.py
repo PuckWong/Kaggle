@@ -1,6 +1,7 @@
 #ROC_AUC
 from keras.callbacks import Callback
 from sklearn.metrics import roc_auc_score
+
 class RocAucEvaluation(Callback):
     def __init__(self, validation_data=(), interval=1):
         super(Callback, self).__init__()
