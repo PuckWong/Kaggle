@@ -1,4 +1,4 @@
-
+# Reading Embedding files
 def get_coefs(word, *arr): 
     return word, np.asarray(arr, dtype='float32')
 
