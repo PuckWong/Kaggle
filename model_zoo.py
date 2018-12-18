@@ -163,7 +163,7 @@ def doubleRNN():
     model.compile(loss='binary_crossentropy', optimizer=AdamW(weight_decay=0.08),)
     return model
     
-  def model_cnn(embedding_matrix):
+def model_cnn(embedding_matrix):
     filter_sizes = [1,2,3,5]
     num_filters = 36
 
