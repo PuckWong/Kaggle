@@ -32,7 +32,7 @@ def singleGRU_II():
     model.compile(loss='binary_crossentropy', optimizer=AdamW(weight_decay=0.08),)
     return model
     
-    def GRU_Attention():
+def GRU_Attention():
     K.clear_session()       
     inp = Input(shape=(maxlen,))
     x = Embedding(max_features, embed_size, weights=[embedding_matrix], trainable=False)(inp)
