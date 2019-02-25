@@ -61,3 +61,4 @@ def denoise_signal( x, wavelet='db4', level=1):
     
     # Reconstruct the signal using the thresholded coefficients
     return pywt.waverec( coeff, wavelet, mode='per' )
+
