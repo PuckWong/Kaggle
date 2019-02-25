@@ -87,3 +87,108 @@ def denoise_signal( x, wavelet='db4', level=1):
     # Reconstruct the signal using the thresholded coefficients
     return pywt.waverec( coeff, wavelet, mode='per' )
 
+
+import collections
+import concurrent.futures
+import glob
+import json
+import math
+import multiprocessing as mp
+import os
+
+import numpy as np
+import pywt
+from scipy import signal
+from scipy import stats
+import tqdm
+
+
+def rolling_window(arr, window):
+    """Returns an array view that can be used to calculate rolling statistics.
+    From http://www.rigtorp.se/2011/01/01/rolling-statistics-numpy.html.
+    """
+    shape = arr.shape[:-1] + (arr.shape[-1] - window + 1, window)
+    strides = arr.strides + (arr.strides[-1],)
+    return np.lib.stride_tricks.as_strided(arr, shape=shape, strides=strides)
+
+
+def mad(x, axis=None):
+    return np.mean(np.abs(x - np.mean(x, axis)), axis)
+
+
+def wavelet_denoise(x, wavelet='db1', mode='hard'):
+
+    # Extract approximate and detailed coefficients
+    c_a, c_d = pywt.dwt(x, wavelet)
+
+    # Determine the threshold
+    sigma = 1 / 0.6745 * mad(np.abs(c_d))
+    threshold = sigma * math.sqrt(2 * math.log(len(x)))
+
+    # Filter the detail coefficients
+    c_d_t = pywt.threshold(c_d, threshold, mode=mode)
+
+    # Reconstruct the signal
+    y = pywt.idwt(np.zeros_like(c_a), c_d_t, wavelet)
+
+    return y
+
+
+def peaks(x):
+    y = wavelet_denoise(x)
+    peaks, properties = signal.find_peaks(y)
+    widths = signal.peak_widths(y, peaks)[0]
+    prominences = signal.peak_prominences(y, peaks)[0]
+    return {
+        'count': peaks.size,
+        'width_mean': widths.mean() if widths.size else -1.,
+        'width_max': widths.max() if widths.size else -1.,
+        'width_min': widths.min() if widths.size else -1.,
+        'prominence_mean': prominences.mean() if prominences.size else -1.,
+        'prominence_max': prominences.max() if prominences.size else -1.,
+        'prominence_min': prominences.min() if prominences.size else -1.,
+    }
+
+
+def denoised_std(x):
+    return np.std(wavelet_denoise(x))
+
+
+def signal_entropy(x):
+
+    y = wavelet_denoise(x)
+
+    for i in range(3):
+        max_pos = y.argmax()
+        y[max_pos - 1000:max_pos + 1000] = 0.
+
+    return stats.entropy(np.histogram(y, 15)[0])
+
+
+def detail_coeffs_entropy(x, wavelet='db1'):
+
+    c_a, c_d = pywt.dwt(x, wavelet)
+
+    return stats.entropy(np.histogram(c_d, 15)[0])
+
+
+def bucketed_entropy(x):
+
+    y = wavelet_denoise(x)
+
+    return {
+        f'bucket_{i}': stats.entropy(np.histogram(bucket, 10)[0])
+        for i, bucket in enumerate(np.split(y, 10))
+    }
+
+
+FUNCS = [
+    np.mean,
+    np.std,
+    stats.kurtosis,
+    peaks,
+    denoised_std,
+    signal_entropy,
+    detail_coeffs_entropy,
+    bucketed_entropy
+]
