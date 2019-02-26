@@ -340,3 +340,36 @@ def LSTM_ATT_Capsule():
     model = Model(inputs=inp, outputs=outp)
     model.compile(loss='binary_crossentropy', optimizer=AdamW(weight_decay=0.02))
     return model
+
+def build_model(embedding_matrix, nb_words, embedding_size=300):
+    inp = Input(shape=(max_length,))
+    x = Embedding(nb_words, embedding_size, weights=[embedding_matrix], trainable=False)(inp)
+    x = SpatialDropout1D(0.3)(x)
+    x1 = Bidirectional(CuDNNLSTM(256, return_sequences=True))(x)
+    x2 = Bidirectional(CuDNNGRU(128, return_sequences=True))(x1)
+    max_pool1 = GlobalMaxPooling1D()(x1)
+    max_pool2 = GlobalMaxPooling1D()(x2)
+    conc = Concatenate()([max_pool1, max_pool2])
+    predictions = Dense(1, activation='sigmoid')(conc)
+    model = Model(inputs=inp, outputs=predictions)
+    adam = optimizers.Adam(lr=learning_rate)
+    model.compile(optimizer=adam, loss='binary_crossentropy', metrics=['accuracy'])
+    return model
+
+def build_gru_model(embedding_matrix, name = "gru"):
+    
+    inp = Input(shape=(maxlen, ))
+    x = Embedding(max_features,300,weights=[embedding_matrix],input_length=maxlen,trainable=False)(inp)
+    x = SpatialDropout1D(.4,seed=seed_nb)(x)
+    x = CuDNNGRU(128, return_sequences=True,kernel_initializer=glorot_uniform(seed=seed_nb))(x)
+    x = CuDNNGRU(64, return_sequences=True,kernel_initializer=glorot_uniform(seed=seed_nb))(x)
+    last = Flatten()(Lambda(lambda x: x[:,-1:,:]) (x))
+    avg_pool = GlobalAveragePooling1D()(x)
+    max_pool = GlobalMaxPooling1D()(x)
+    conc = concatenate([avg_pool, max_pool, last])
+    #x = Dropout(.3,seed=seed_nb)(x)
+    x = Dense(32, activation = 'relu',kernel_initializer=he_uniform(seed=seed_nb))(conc)
+    outp = Dense(1, activation="sigmoid",kernel_initializer=he_uniform(seed=seed_nb))(x)
+    
+    model = Model(inputs=[inp], outputs=outp, name = name)
+    return model
